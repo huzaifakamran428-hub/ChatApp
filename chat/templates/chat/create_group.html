@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Create Group — ChatApp{% endblock %}
+{% block extra_css %}
+<style>
+.create-wrapper { max-width: 580px; margin: 36px auto; padding: 0 16px; }
+.create-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 36px; box-shadow: var(--shadow); }
+.create-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
+.create-card h2 i { color: var(--success); }
+.members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 260px; overflow-y: auto; padding: 4px; }
+.member-checkbox { display: none; }
+.member-label { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; font-size: 0.85rem; }
+.member-label:hover { border-color: var(--accent); }
+.member-checkbox:checked + .member-label { border-color: var(--success); background: rgba(62,207,142,0.08); color: var(--success); }
+.member-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.member-avatar-ph { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-input); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+.icon-preview { width: 70px; height: 70px; border-radius: 50%; background: rgba(62,207,142,0.12); border: 2px dashed var(--success); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: var(--success); cursor: pointer; overflow: hidden; }
+.icon-preview img { width: 100%; height: 100%; object-fit: cover; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="create-wrapper">
+  <div class="create-card">
+    <h2><i class="fas fa-users"></i> Create New Group</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <!-- Group Icon -->
+      <div class="form-group" style="display:flex; align-items:center; gap:16px;">
+        <div class="icon-preview" onclick="document.getElementById('icon-input').click()" id="icon-preview">
+          <i class="fas fa-camera"></i>
+        </div>
+        <div>
+          <div style="font-weight:600; margin-bottom:4px;">Group Photo</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Click to upload (optional)</div>
+        </div>
+        <input type="file" id="icon-input" name="icon" accept="image/*" style="display:none;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Group Name *</label>
+        <input type="text" name="name" class="form-control" placeholder="e.g. Study Group, Friends, Team…" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description (optional)</label>
+        <textarea name="description" class="form-control" rows="2" placeholder="What's this group about?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Add Members</label>
+        <div class="members-grid">
+          {% for user in all_users %}
+          <div>
+            <input type="checkbox" class="member-checkbox" name="members" value="{{ user.id }}" id="m{{ user.id }}">
+            <label class="member-label" for="m{{ user.id }}">
+              {% if user.avatar %}
+                <img src="{{ user.avatar.url }}" class="member-avatar" alt="">
+              {% else %}
+                <div class="member-avatar-ph">{{ user.username|first|upper }}</div>
+              {% endif %}
+              {{ user.username }}
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full mt-2" style="background:var(--success);">
+        <i class="fas fa-check"></i> Create Group
+      </button>
+    </form>
+    <a href="{% url 'chat:home' %}" class="btn btn-outline btn-full mt-2" style="text-decoration:none; margin-top:10px;">
+      <i class="fas fa-arrow-left"></i> Cancel
+    </a>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById('icon-input').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('icon-preview');
+    preview.innerHTML = `<img src="${e.target.result}" alt="">`;
+  };
+  reader.readAsDataURL(file);
+});
+</script>
+{% endblock %}

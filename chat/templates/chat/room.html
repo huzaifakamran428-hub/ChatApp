@@ -1,0 +1,567 @@
+{% extends 'base.html' %}
+{% block title %}Chat with {{ other_user.username }} — ChatApp{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ── */
+.chat-layout { height:calc(100vh - 56px); display:flex; flex-direction:column; max-width:860px; margin:0 auto; }
+
+@media (max-width:480px) {
+  .chat-layout { height:calc(100vh - 52px); }
+  .bubble { font-size:0.85rem; }
+  .input-bar { padding:8px 10px; gap:6px; }
+  #message-input { padding:8px 12px; font-size:0.85rem; }
+  #send-btn, #mic-btn, .btn-icon { width:36px; height:36px; font-size:0.88rem; }
+  .messages-area { padding:12px 12px; }
+}
+
+/* ── Header ── */
+.chat-header { background:var(--bg-card); border-bottom:1px solid var(--border); padding:12px 18px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.back-btn { color:var(--text-secondary); text-decoration:none; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-sm); transition:background 0.15s; }
+.back-btn:hover { background:var(--bg-secondary); }
+.header-avatar { width:42px; height:42px; background:var(--accent-light); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1rem; color:var(--accent); flex-shrink:0; }
+.header-info { flex:1; }
+.header-name { font-weight:700; font-size:0.95rem; }
+.header-status { font-size:0.75rem; color:var(--success); }
+.ws-indicator { width:8px; height:8px; border-radius:50%; background:var(--text-muted); }
+.ws-indicator.connected { background:var(--success); }
+
+/* ── Messages area ── */
+.messages-area { flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:8px; background:var(--bg-primary); }
+.chat-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); gap:10px; }
+.chat-empty i { font-size:2.5rem; }
+
+/* ── Bubbles ── */
+.bubble-row { display:flex; flex-direction:column; max-width:72%; }
+.bubble-row.me { align-self:flex-end; align-items:flex-end; }
+.bubble-row.them { align-self:flex-start; align-items:flex-start; }
+.bubble { padding:10px 14px; border-radius:18px; font-size:0.9rem; line-height:1.5; word-break:break-word; }
+.bubble-row.me .bubble { background:var(--bubble-me); color:#fff; border-bottom-right-radius:4px; }
+.bubble-row.them .bubble { background:var(--bubble-them); color:var(--text-primary); border-bottom-left-radius:4px; }
+.bubble-meta { font-size:0.7rem; color:var(--text-muted); margin-top:3px; padding:0 4px; }
+.sender-name { font-size:0.75rem; color:var(--accent); font-weight:600; margin-bottom:2px; }
+@keyframes popIn { from{opacity:0;transform:scale(0.92) translateY(8px);} to{opacity:1;transform:scale(1) translateY(0);} }
+.bubble-row.new { animation:popIn 0.2s ease; }
+
+
+/* ── File bubbles ── */
+.msg-image { max-width:240px; max-height:180px; border-radius:8px; display:block; cursor:pointer; }
+.msg-video { max-width:240px; border-radius:8px; display:block; }
+.msg-file-link { display:inline-flex; align-items:center; gap:8px; color:inherit; text-decoration:none; background:rgba(255,255,255,0.08); padding:8px 12px; border-radius:8px; font-size:0.85rem; }
+.msg-file-link:hover { background:rgba(255,255,255,0.14); }
+
+/* ── Input area (SINGLE bar) ── */
+.input-area { flex-shrink:0; background:var(--bg-card); border-top:1px solid var(--border); }
+.input-bar { padding:10px 14px; display:flex; align-items:center; gap:8px; }
+#message-input { flex:1; background:var(--bg-input); border:1px solid var(--border); border-radius:22px; color:var(--text-primary); padding:10px 16px; font-size:0.9rem; font-family:var(--font); outline:none; resize:none; max-height:120px; overflow-y:auto; transition:border-color 0.2s; }
+#message-input:focus { border-color:var(--accent); }
+#message-input::placeholder { color:var(--text-muted); }
+.input-file { display:none; }
+.btn-icon { width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text-secondary); font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0; }
+.btn-icon:hover { border-color:var(--accent); color:var(--accent); }
+#send-btn { width:40px; height:40px; border-radius:50%; border:none; background:var(--accent); color:#fff; font-size:0.95rem; cursor:pointer; display:none; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0; }
+#send-btn:hover { background:var(--accent-hover); }
+#mic-btn { width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text-secondary); font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0; }
+#mic-btn:hover { border-color:var(--danger); color:var(--danger); }
+#mic-btn.rec { background:var(--danger); border-color:var(--danger); color:#fff; animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* ── File preview ── */
+.file-preview { display:none; padding:8px 14px 0; gap:10px; align-items:center; }
+.file-preview i { color:var(--accent); }
+.file-preview-info { flex:1; min-width:0; }
+.file-preview-name { font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.file-preview-size { font-size:0.72rem; color:var(--text-muted); }
+.file-preview-cancel { background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.82rem; }
+.progress-wrap { display:none; padding:6px 14px 8px; }
+.progress-track { background:var(--bg-input); border-radius:4px; height:5px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--accent); border-radius:4px; width:0%; transition:width 0.2s; }
+.progress-label { font-size:0.72rem; color:var(--text-muted); margin-top:3px; text-align:right; }
+
+/* ── Voice recording bar ── */
+.rec-bar { display:none; padding:8px 16px; background:rgba(246,109,109,0.10); border-top:1px solid var(--danger); align-items:center; gap:10px; }
+.rec-dot { width:8px; height:8px; border-radius:50%; background:var(--danger); animation:pulse 1s infinite; flex-shrink:0; }
+.rec-label { font-size:0.82rem; color:var(--danger); font-weight:600; }
+.rec-time { font-size:0.82rem; color:var(--danger); font-weight:700; margin-left:auto; }
+.rec-cancel { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; }
+
+/* ── Lightbox ── */
+.lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center; cursor:zoom-out; }
+.lightbox.open { display:flex; }
+.lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; }
+
+/* ── WS warning ── */
+.ws-warning { display:none; align-items:center; gap:10px; background:#2a1a00; border-bottom:1px solid #f5a623; padding:8px 16px; font-size:0.8rem; color:#f5a623; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+
+  <!-- Header -->
+  <div class="chat-header">
+    <a href="{% url 'chat:home' %}" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+    {% if other_user.avatar %}
+      <img src="{{ other_user.avatar.url }}" class="header-avatar" style="width:42px;height:42px;object-fit:cover;" alt="">
+    {% else %}
+      <div class="header-avatar">{{ other_user.username|first|upper }}</div>
+    {% endif %}
+    <div class="header-info">
+      <div class="header-name">{{ other_user.username }}</div>
+      <div class="header-status" id="conn-status">Connecting…</div>
+    </div>
+    <div class="ws-indicator" id="ws-dot"></div>
+  </div>
+
+  <!-- WS Warning -->
+  <div class="ws-warning" id="ws-warning">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span><strong>WebSocket not connected.</strong> Run: <code style="background:#1a1000;padding:2px 6px;border-radius:4px;">daphne -b 0.0.0.0 -p 8000 chatapp.asgi:application</code></span>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages-area" id="messages-area">
+    {% if not messages %}
+      <div class="chat-empty" id="empty-hint">
+        <i class="fas fa-comment-dots"></i>
+        <p>Say hello to <strong>{{ other_user.username }}</strong>!</p>
+      </div>
+    {% else %}
+      {% for msg in messages %}
+      <div class="bubble-row {% if msg.sender == request.user %}me{% else %}them{% endif %}">
+        {% if msg.sender != request.user %}
+        <div style="display:flex;align-items:flex-end;gap:6px;">
+          {% if msg.sender.avatar %}
+            <img src="{{ msg.sender.avatar.url }}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">
+          {% else %}
+            <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--accent);flex-shrink:0;">{{ msg.sender.username|first|upper }}</div>
+          {% endif %}
+          <div>
+            <div class="sender-name">{{ msg.sender.username }}</div>
+        {% endif %}
+        <div class="bubble">
+          {% if msg.file %}
+            {% if msg.file_type == 'image' %}
+              <img src="{{ msg.file.url }}" class="msg-image" onclick="openImg('{{ msg.file.url }}')" alt="">
+            {% elif msg.file_type == 'video' %}
+              <video controls class="msg-video"><source src="{{ msg.file.url }}"></video>
+            {% elif msg.file_type == 'voice' %}
+              <div style="display:flex;align-items:center;gap:10px;min-width:180px;">
+                <button onclick="toggleVoice(this,'{{ msg.file.url }}')" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:0.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-play"></i></button>
+                <div style="flex:1;"><div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;"><div class="vp" style="height:100%;background:#fff;border-radius:2px;width:0%;transition:width 0.1s;"></div></div><div class="vd" style="font-size:0.7rem;margin-top:3px;opacity:0.7;">🎤 Voice</div></div>
+              </div>
+            {% elif msg.file_type == 'audio' %}
+              <audio controls style="width:200px;display:block;"><source src="{{ msg.file.url }}"></audio>
+            {% else %}
+              <a href="{{ msg.file.url }}" target="_blank" class="msg-file-link"><i class="fas fa-file"></i> {{ msg.file_name }}</a>
+            {% endif %}
+          {% else %}
+            {{ msg.message_content }}
+          {% endif %}
+        </div>
+        <div class="bubble-meta">{{ msg.timestamp|date:"g:i A" }}</div>
+        {% if msg.sender != request.user %}
+          </div></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% endif %}
+
+  </div>
+
+  <!-- SINGLE Input Area -->
+  <div class="input-area">
+
+    <!-- File preview (shown when file selected) -->
+    <div class="file-preview" id="file-preview">
+      <i id="file-icon" class="fas fa-file"></i>
+      <div class="file-preview-info">
+        <div class="file-preview-name" id="file-preview-name"></div>
+        <div class="file-preview-size" id="file-preview-size"></div>
+      </div>
+      <button class="file-preview-cancel" onclick="cancelFile()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Upload progress (shown during upload) -->
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label">0%</div>
+    </div>
+
+    <!-- Voice recording bar (shown while recording) -->
+    <div class="rec-bar" id="rec-bar">
+      <div class="rec-dot"></div>
+      <span class="rec-label">Recording…</span>
+      <span class="rec-time" id="rec-time">0:00</span>
+      <button class="rec-cancel" id="cancel-rec"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+
+    <!-- THE ONE AND ONLY input bar -->
+    <div class="input-bar">
+      <input type="file" id="file-input" class="input-file">
+      <button class="btn-icon" id="attach-btn" title="Attach file"><i class="fas fa-paperclip"></i></button>
+      <textarea id="message-input" placeholder="Type a message…" rows="1" autocomplete="off"></textarea>
+      <button id="send-btn" title="Send"><i class="fas fa-paper-plane"></i></button>
+      <button id="mic-btn" title="Record voice"><i class="fas fa-microphone"></i></button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <img id="lightbox-img" src="" alt="">
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ME           = "{{ request.user.username }}";
+const OTHER        = "{{ other_user.username }}";
+const CSRF         = "{{ csrf_token }}";
+const OTHER_AVATAR = "{% if other_user.avatar %}{{ other_user.avatar.url }}{% endif %}";
+const OTHER_URL    = "{% url 'chat:room' other_user.username %}";
+const WS_PROTO     = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const WS_URL       = `${WS_PROTO}://${window.location.host}/ws/chat/${OTHER}/`;
+
+// DOM refs
+const area        = document.getElementById('messages-area');
+const input       = document.getElementById('message-input');
+const sendBtn     = document.getElementById('send-btn');
+const micBtn      = document.getElementById('mic-btn');
+const attachBtn   = document.getElementById('attach-btn');
+const fileInput   = document.getElementById('file-input');
+const filePreview = document.getElementById('file-preview');
+const filePrevName = document.getElementById('file-preview-name');
+const filePrevSize = document.getElementById('file-preview-size');
+const fileIconEl  = document.getElementById('file-icon');
+const progressWrap = document.getElementById('progress-wrap');
+const progressFill = document.getElementById('progress-fill');
+const progressLbl  = document.getElementById('progress-label');
+const recBar      = document.getElementById('rec-bar');
+const recTime     = document.getElementById('rec-time');
+const cancelRec   = document.getElementById('cancel-rec');
+let emptyHint   = document.getElementById('empty-hint');
+const connStatus  = document.getElementById('conn-status');
+const wsDot       = document.getElementById('ws-dot');
+const wsWarning   = document.getElementById('ws-warning');
+
+let socket, wsWorking = false, reconnects = 0;
+let selectedFile = null;
+let mediaRecorder = null, audioChunks = [], recSecs = 0, recInterval = null, recording = false;
+const voiceAudios = {};
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function scrollBottom() { area.scrollTop = area.scrollHeight; }
+function openImg(url) { document.getElementById('lightbox-img').src = url; document.getElementById('lightbox').classList.add('open'); }
+function fmtSize(b) {
+  if (b<1024) return b+' B';
+  if (b<1048576) return (b/1024).toFixed(1)+' KB';
+  if (b<1073741824) return (b/1048576).toFixed(1)+' MB';
+  return (b/1073741824).toFixed(2)+' GB';
+}
+function fileType(name) {
+  const e=(name.split('.').pop()||'').toLowerCase();
+  if(['jpg','jpeg','png','gif','webp','bmp','svg'].includes(e)) return 'image';
+  if(['mp4','webm','mov','avi','mkv'].includes(e)) return 'video';
+  if(['mp3','wav','ogg','aac','flac','m4a'].includes(e)) return 'audio';
+  if(e==='pdf') return 'pdf';
+  if(['zip','rar','7z','tar','gz'].includes(e)) return 'archive';
+  return 'document';
+}
+const ICONS = {image:'fa-image',video:'fa-film',audio:'fa-music',pdf:'fa-file-pdf',archive:'fa-file-zipper',document:'fa-file-lines',voice:'fa-microphone'};
+
+// ── send/hide button toggle ───────────────────────────────────────────────────
+function syncButtons() {
+  const hasContent = input.value.trim().length > 0 || selectedFile;
+  sendBtn.style.display = hasContent ? 'flex' : 'none';
+  micBtn.style.display  = hasContent ? 'none'  : 'flex';
+}
+
+// ── bubble builders ───────────────────────────────────────────────────────────
+function makeBubble(msg, sender, avatar, ts, isNew) {
+  const isMe = sender === ME;
+  const row = document.createElement('div');
+  row.className = `bubble-row ${isMe?'me':'them'}${isNew?' new':''}`;
+
+  if (!isMe) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
+    wrap.innerHTML = avatar
+      ? `<img src="${avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">`
+      : `<div style="width:24px;height:24px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--accent);flex-shrink:0;">${sender[0].toUpperCase()}</div>`;
+    const inner = document.createElement('div');
+    inner.innerHTML = `<div class="sender-name">${sender}</div>`;
+    const bub = document.createElement('div'); bub.className='bubble'; bub.textContent=msg;
+    const meta = document.createElement('div'); meta.className='bubble-meta'; meta.textContent=ts;
+    inner.appendChild(bub); inner.appendChild(meta);
+    wrap.appendChild(inner); row.appendChild(wrap);
+  } else {
+    const bub = document.createElement('div'); bub.className='bubble'; bub.textContent=msg;
+    const meta = document.createElement('div'); meta.className='bubble-meta'; meta.textContent=ts;
+    row.appendChild(bub); row.appendChild(meta);
+  }
+  return row;
+}
+
+function makeFileBubble(d, isNew) {
+  const isMe = d.sender === ME;
+  const row = document.createElement('div');
+  row.className = `bubble-row ${isMe?'me':'them'}${isNew?' new':''}`;
+
+  const bub = document.createElement('div'); bub.className='bubble';
+  const ft = d.file_type||'document';
+
+  if (ft==='image') {
+    const img=document.createElement('img'); img.src=d.file_url; img.className='msg-image'; img.onclick=()=>openImg(d.file_url); bub.appendChild(img);
+  } else if (ft==='video') {
+    bub.innerHTML=`<video controls class="msg-video"><source src="${d.file_url}"></video>`;
+  } else if (ft==='voice') {
+    bub.innerHTML=`<div style="display:flex;align-items:center;gap:10px;min-width:180px;">
+      <button onclick="toggleVoice(this,'${d.file_url}')" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:0.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-play"></i></button>
+      <div style="flex:1;"><div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;"><div class="vp" style="height:100%;background:#fff;border-radius:2px;width:0%;transition:width 0.1s;"></div></div>
+      <div class="vd" style="font-size:0.7rem;margin-top:3px;opacity:0.7;">🎤 Voice</div></div></div>`;
+  } else if (ft==='audio') {
+    bub.innerHTML=`<audio controls style="width:200px;display:block;"><source src="${d.file_url}"></audio>`;
+  } else {
+    const icon=ICONS[ft]||'fa-file';
+    bub.innerHTML=`<a href="${d.file_url}" target="_blank" class="msg-file-link"><i class="fas ${icon}"></i><div><div style="font-size:0.85rem;">${d.file_name}</div>${d.file_size?`<div style="font-size:0.72rem;opacity:0.7;">${d.file_size}</div>`:''}</div></a>`;
+  }
+  const meta=document.createElement('div'); meta.className='bubble-meta'; meta.textContent=d.timestamp;
+
+  // FIX: Match the same avatar+sender-name layout as makeBubble for "them" side
+  if (!isMe) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
+    const avatarSrc = d.sender_avatar || OTHER_AVATAR;
+    wrap.innerHTML = avatarSrc
+      ? `<img src="${avatarSrc}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">`
+      : `<div style="width:24px;height:24px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--accent);flex-shrink:0;">${d.sender[0].toUpperCase()}</div>`;
+    const inner = document.createElement('div');
+    const sName = document.createElement('div'); sName.className='sender-name'; sName.textContent=d.sender;
+    inner.appendChild(sName); inner.appendChild(bub); inner.appendChild(meta);
+    wrap.appendChild(inner); row.appendChild(wrap);
+  } else {
+    row.appendChild(bub); row.appendChild(meta);
+  }
+  return row;
+}
+
+// ── voice playback ────────────────────────────────────────────────────────────
+function toggleVoice(btn, url) {
+  if (!voiceAudios[url]) {
+    voiceAudios[url] = new Audio(url);
+    const bub = btn.closest('.bubble');
+    const vp = bub && bub.querySelector('.vp');
+    const vd = bub && bub.querySelector('.vd');
+    const a = voiceAudios[url];
+    a.addEventListener('timeupdate', () => {
+      const p = a.duration?(a.currentTime/a.duration*100):0;
+      if(vp) vp.style.width=p+'%';
+      const s=Math.floor(a.currentTime), t=Math.floor(a.duration||0);
+      if(vd) vd.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} / ${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+    });
+    a.addEventListener('ended', ()=>{ btn.innerHTML='<i class="fas fa-play"></i>'; if(vp) vp.style.width='0%'; });
+  }
+  const a = voiceAudios[url];
+  if (a.paused) { a.play(); btn.innerHTML='<i class="fas fa-pause"></i>'; }
+  else { a.pause(); btn.innerHTML='<i class="fas fa-play"></i>'; }
+}
+
+// ── file attachment ────────────────────────────────────────────────────────────
+attachBtn.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{
+  selectedFile = fileInput.files[0];
+  if (!selectedFile) return;
+  const ft = fileType(selectedFile.name);
+  fileIconEl.className = `fas ${ICONS[ft]||'fa-file'}`;
+  filePrevName.textContent = selectedFile.name;
+  filePrevSize.textContent = fmtSize(selectedFile.size);
+  filePreview.style.display = 'flex';
+  progressWrap.style.display = 'none';
+  progressFill.style.width = '0%';
+  syncButtons();
+});
+function cancelFile() {
+  selectedFile=null; fileInput.value='';
+  filePreview.style.display='none';
+  progressWrap.style.display='none';
+  syncButtons();
+}
+
+// ── file upload with XHR progress ─────────────────────────────────────────────
+function uploadFile(file) {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData(); fd.append('file', file); fd.append('receiver', OTHER);
+    const xhr = new XMLHttpRequest();
+    progressWrap.style.display = 'block';
+    xhr.upload.addEventListener('progress', e=>{
+      if(e.lengthComputable){
+        const p=Math.round(e.loaded/e.total*100);
+        progressFill.style.width=p+'%';
+        progressLbl.textContent=`${p}% — ${fmtSize(e.loaded)} / ${fmtSize(e.total)}`;
+      }
+    });
+    xhr.addEventListener('load', ()=>{ if(xhr.status>=200&&xhr.status<300) resolve(JSON.parse(xhr.responseText)); else reject('Upload failed'); });
+    xhr.addEventListener('error', ()=>reject('Network error'));
+    xhr.open('POST','/chat/upload/'); xhr.setRequestHeader('X-CSRFToken',CSRF); xhr.send(fd);
+  });
+}
+
+// ── voice recording ────────────────────────────────────────────────────────────
+micBtn.addEventListener('click', async ()=>{
+  if (recording) { stopRec(true); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    startRec(stream);
+  } catch(e) { alert('Microphone access denied. Allow microphone in browser settings.'); }
+});
+cancelRec.addEventListener('click', ()=>stopRec(false));
+
+function startRec(stream) {
+  recording=true; audioChunks=[]; recSecs=0;
+  micBtn.classList.add('rec'); micBtn.innerHTML='<i class="fas fa-stop"></i>';
+  recBar.style.display='flex'; recTime.textContent='0:00';
+  recInterval = setInterval(()=>{
+    recSecs++;
+    recTime.textContent=`${Math.floor(recSecs/60)}:${String(recSecs%60).padStart(2,'0')}`;
+  },1000);
+  mediaRecorder = new MediaRecorder(stream,{mimeType:'audio/webm'});
+  mediaRecorder.ondataavailable = e=>{ if(e.data.size>0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async ()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    if (audioChunks.length>0 && recording!=='cancelled') {
+      const blob = new Blob(audioChunks,{type:'audio/webm'});
+      await sendVoice(blob);
+    }
+    audioChunks=[]; recording=false;
+  };
+  mediaRecorder.start();
+}
+function stopRec(send) {
+  if (!mediaRecorder||mediaRecorder.state==='inactive') return;
+  clearInterval(recInterval);
+  recBar.style.display='none';
+  micBtn.classList.remove('rec'); micBtn.innerHTML='<i class="fas fa-microphone"></i>';
+  if (!send) recording='cancelled';
+  mediaRecorder.stop();
+}
+async function sendVoice(blob) {
+  micBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i>'; micBtn.disabled=true;
+  try {
+    const fd=new FormData(); fd.append('voice',blob,'voice.webm'); fd.append('receiver',OTHER);
+    const r=await fetch('/chat/upload/voice/',{method:'POST',headers:{'X-CSRFToken':CSRF},body:fd});
+    if(r.ok){
+      const d=await r.json();
+      if(emptyHint) emptyHint.remove();
+      area.appendChild(makeFileBubble(d,true));
+      scrollBottom();
+      wsSend({file_message:true,file_url:d.file_url,file_name:d.file_name,file_type:'voice',file_size:'',timestamp:d.timestamp,message_id:d.message_id});
+    }
+  } catch(e){console.error(e);}
+  micBtn.innerHTML='<i class="fas fa-microphone"></i>'; micBtn.disabled=false;
+}
+
+
+function wsSend(obj) { if(socket&&socket.readyState===WebSocket.OPEN) socket.send(JSON.stringify(obj)); }
+
+input.addEventListener('input', ()=>{
+  input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px';
+  syncButtons();
+});
+
+// ── send message ───────────────────────────────────────────────────────────────
+sendBtn.addEventListener('click', doSend);
+input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();} });
+
+async function doSend() {
+  const text = input.value.trim();
+
+  // ── File upload ──
+  if (selectedFile) {
+    sendBtn.disabled=true; sendBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
+    try {
+      const d = await uploadFile(selectedFile);
+      if(d){
+        if(emptyHint) emptyHint.remove();
+        area.appendChild(makeFileBubble(d,true)); scrollBottom();
+        wsSend({file_message:true,file_url:d.file_url,file_name:d.file_name,file_type:d.file_type,file_size:d.file_size||'',timestamp:d.timestamp,message_id:d.message_id});
+      }
+    } catch(err){alert('Upload failed: '+err);}
+    cancelFile(); input.value='';
+    sendBtn.disabled=false; sendBtn.innerHTML='<i class="fas fa-paper-plane"></i>';
+    syncButtons();
+    return;
+  }
+
+  // ── Text message ──
+  if (!text) return;
+  input.value=''; input.style.height='auto';
+  syncButtons();
+
+  // Show own bubble immediately (don't wait for server echo)
+  if(emptyHint) emptyHint.remove();
+  const now = new Date();
+  const ts = now.toLocaleTimeString('en-PK',{hour:'numeric',minute:'2-digit',hour12:true});
+  area.appendChild(makeBubble(text, ME, '', ts, true));
+  scrollBottom();
+
+  // Send to server — server will broadcast to OTHER only
+  wsSend({message:text});
+}
+
+// ── websocket ──────────────────────────────────────────────────────────────────
+function connect() {
+  connStatus.textContent='Connecting…'; connStatus.style.color='var(--warning)';
+  wsDot.className='ws-indicator';
+  try { socket=new WebSocket(WS_URL); } catch(e){ showWSWarning(); return; }
+
+  const t=setTimeout(()=>{ if(socket.readyState!==WebSocket.OPEN) showWSWarning(); },4000);
+
+  socket.onopen=()=>{
+    clearTimeout(t); wsWorking=true; reconnects=0;
+    connStatus.textContent='Connected'; connStatus.style.color='var(--success)';
+    wsDot.className='ws-indicator connected';
+    wsWarning.style.display='none';
+    sendBtn.disabled=false; scrollBottom();
+  };
+  socket.onclose=()=>{
+    clearTimeout(t);
+    if(wsWorking){ wsWorking=false; reconnects++; connStatus.textContent='Reconnecting…'; connStatus.style.color='var(--warning)'; setTimeout(connect,Math.min(reconnects*2000,10000)); }
+    else showWSWarning();
+  };
+  socket.onerror=()=>clearTimeout(t);
+
+  socket.onmessage=e=>{
+    const d=JSON.parse(e.data);
+
+    // FIX: The sender already rendered their own bubble optimistically (in doSend /
+    // sendVoice). We only render via WebSocket for the RECEIVER side (d.sender !== ME).
+    // This prevents duplicate bubbles appearing for the person who sent the message.
+    if(d.sender === ME) return;
+
+    if(emptyHint) { emptyHint.remove(); emptyHint = null; }
+
+    if(d.file_message){
+      area.appendChild(makeFileBubble(d,true)); scrollBottom();
+      const previewMap={image:'📷 Image',video:'🎬 Video',voice:'🎤 Voice message',audio:'🎵 Audio',pdf:'📄 PDF',archive:'🗜 Archive'};
+      const prev = previewMap[d.file_type] || '📎 '+d.file_name;
+      if(window.ChatAppNotify)
+        window.ChatAppNotify.addNotification(d.sender, prev, OTHER_URL, d.sender_avatar||OTHER_AVATAR);
+    } else if(d.message){
+      area.appendChild(makeBubble(d.message,d.sender,d.sender_avatar||OTHER_AVATAR,d.timestamp,true));
+      scrollBottom();
+      if(window.ChatAppNotify)
+        window.ChatAppNotify.addNotification(d.sender,d.message,OTHER_URL,d.sender_avatar||OTHER_AVATAR);
+    }
+  };
+}
+
+function showWSWarning() { wsWarning.style.display='flex'; connStatus.textContent='Offline'; connStatus.style.color='var(--danger)'; }
+
+// ── init ────────────────────────────────────────────────────────────────────────
+syncButtons();
+scrollBottom();
+connect();
+</script>
+{% endblock %}

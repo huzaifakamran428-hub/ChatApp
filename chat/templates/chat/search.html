@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Search Users — ChatApp{% endblock %}
+
+{% block extra_css %}
+<style>
+.search-wrapper {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 16px;
+}
+.search-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+.search-top {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+}
+.search-top h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.search-top h2 i { color: var(--accent); }
+.search-row { display: flex; gap: 10px; }
+.search-input {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    outline: none;
+    font-family: var(--font);
+    transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-muted); }
+
+.result-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+}
+.result-item:last-child { border-bottom: none; }
+.result-item:hover { background: var(--bg-secondary); text-decoration: none; }
+.result-avatar {
+    width: 44px; height: 44px;
+    background: var(--accent-light);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; color: var(--accent);
+}
+.result-name { font-weight: 600; font-size: 0.92rem; }
+.result-sub  { font-size: 0.78rem; color: var(--text-muted); }
+.result-cta  { margin-left: auto; color: var(--accent); font-size: 0.82rem; }
+
+.no-results {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-muted);
+}
+.no-results i { font-size: 2rem; display: block; margin-bottom: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-wrapper">
+    <div class="search-card">
+        <div class="search-top">
+            <h2><i class="fas fa-search"></i> Find People</h2>
+            <form method="get" class="search-row">
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ query }}"
+                    class="search-input"
+                    placeholder="Search by username…"
+                    autofocus
+                >
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
+
+        {% if query %}
+            {% if results %}
+                {% for u in results %}
+                <a href="{% url 'chat:room' u.username %}" class="result-item">
+                    <div class="result-avatar">{{ u.username|first|upper }}</div>
+                    <div>
+                        <div class="result-name">{{ u.username }}</div>
+                        <div class="result-sub">{{ u.email }}</div>
+                    </div>
+                    <span class="result-cta"><i class="fas fa-comment"></i> Chat</span>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="no-results">
+                    <i class="fas fa-user-slash"></i>
+                    <p>No users found for "<strong>{{ query }}</strong>"</p>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="no-results">
+                <i class="fas fa-users"></i>
+                <p>Enter a username to search</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

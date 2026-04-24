@@ -1,0 +1,437 @@
+{% extends 'base.html' %}
+{% block title %}{{ group.name }} — ChatApp{% endblock %}
+{% block extra_css %}
+<style>
+.chat-layout { height: calc(100vh - 60px); display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; }
+.chat-header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.back-btn { color: var(--text-secondary); text-decoration: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background 0.15s; }
+.back-btn:hover { background: var(--bg-secondary); }
+.group-icon { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; }
+.group-icon-ph { width: 42px; height: 42px; border-radius: 50%; background: rgba(62,207,142,0.15); display: flex; align-items: center; justify-content: center; color: var(--success); font-size: 1rem; }
+.header-info { flex: 1; }
+.header-name { font-weight: 700; font-size: 0.95rem; }
+.header-sub { font-size: 0.75rem; color: var(--text-muted); }
+.members-toggle { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 5px 10px; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+.members-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.main-area { flex: 1; display: flex; overflow: hidden; }
+.messages-area { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-primary); }
+.members-panel { width: 220px; background: var(--bg-card); border-left: 1px solid var(--border); overflow-y: auto; display: none; flex-direction: column; }
+.members-panel.open { display: flex; }
+.members-panel-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between; }
+.member-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.member-row:last-child { border-bottom: none; }
+.m-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.m-avatar-ph { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.78rem; color: var(--accent); flex-shrink: 0; }
+.m-name { flex: 1; font-weight: 500; }
+.m-admin { font-size: 0.68rem; color: var(--success); font-weight: 600; }
+.add-member-form { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+.add-member-form input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); padding: 6px 10px; font-size: 0.8rem; outline: none; }
+.add-member-form input:focus { border-color: var(--accent); }
+.add-member-btn { background: var(--accent); border: none; color: #fff; border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer; font-size: 0.8rem; }
+/* Bubbles */
+.bubble-row { display: flex; flex-direction: column; max-width: 72%; }
+.bubble-row.me { align-self: flex-end; align-items: flex-end; }
+.bubble-row.them { align-self: flex-start; align-items: flex-start; }
+.bubble { padding: 10px 14px; border-radius: 18px; font-size: 0.9rem; line-height: 1.5; word-break: break-word; }
+.bubble-row.me .bubble { background: var(--bubble-me); color: #fff; border-bottom-right-radius: 4px; }
+.bubble-row.them .bubble { background: var(--bubble-them); color: var(--text-primary); border-bottom-left-radius: 4px; }
+.bubble-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; padding: 0 4px; }
+.sender-name { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-bottom: 3px; padding: 0 4px; }
+.sender-info { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.sender-avatar-mini { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.sender-avatar-mini-ph { width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; color: var(--accent); }
+@keyframes popIn { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.bubble-row.new { animation: popIn 0.2s ease; }
+.chat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 10px; }
+.input-bar { background: var(--bg-card); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#file-input { display: none; }
+#attach-btn { width: 40px; height: 40px; background: transparent; border: 1px solid var(--border); border-radius: 50%; color: var(--text-secondary); font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+#attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+#message-input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: 22px; color: var(--text-primary); padding: 10px 18px; font-size: 0.9rem; font-family: var(--font); outline: none; resize: none; max-height: 120px; overflow-y: auto; transition: border-color 0.2s; }
+#message-input:focus { border-color: var(--accent); }
+#message-input::placeholder { color: var(--text-muted); }
+#send-btn { width: 44px; height: 44px; background: var(--success); border: none; border-radius: 50%; color: #fff; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+#send-btn:hover { opacity: 0.85; }
+#send-btn:disabled { background: var(--text-muted); cursor: not-allowed; }
+.msg-image { max-width: 240px; max-height: 180px; border-radius: 8px; display: block; cursor: pointer; }
+.msg-file-link { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; background: rgba(255,255,255,0.08); padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; }
+.lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; cursor: zoom-out; }
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+.leave-btn { color: var(--danger); font-size: 0.78rem; text-decoration: none; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--danger); transition: all 0.2s; background: none; cursor: pointer; }
+.leave-btn:hover { background: rgba(246,109,109,0.1); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="chat-layout">
+  <!-- Header -->
+  <div class="chat-header">
+    <a href="{% url 'chat:home' %}" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+    {% if group.icon %}
+      <img src="{{ group.icon.url }}" class="group-icon" alt="">
+    {% else %}
+      <div class="group-icon-ph"><i class="fas fa-users"></i></div>
+    {% endif %}
+    <div class="header-info">
+      <div class="header-name">{{ group.name }}</div>
+      <div class="header-sub">{{ members.count }} members · <span id="conn-status">Connecting…</span></div>
+    </div>
+    <button class="members-toggle" onclick="toggleMembers()"><i class="fas fa-users"></i> Members</button>
+    <form method="post" action="{% url 'chat:leave_group' group.id %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="leave-btn" onclick="return confirm('Leave this group?')">
+        <i class="fas fa-sign-out-alt"></i> Leave
+      </button>
+    </form>
+  </div>
+
+  <div class="main-area">
+    <!-- Messages -->
+    <div class="messages-area" id="messages-area">
+      {% if not messages %}
+        <div class="chat-empty" id="empty-hint">
+          <i class="fas fa-comments" style="font-size:2.5rem;"></i>
+          <p>No messages yet. Say hello to the group!</p>
+        </div>
+      {% else %}
+        {% for msg in messages %}
+        <div class="bubble-row {% if msg.sender == request.user %}me{% else %}them{% endif %}">
+          {% if msg.sender != request.user %}
+            <div class="sender-info">
+              {% if msg.sender.avatar %}
+                <img src="{{ msg.sender.avatar.url }}" class="sender-avatar-mini" alt="">
+              {% else %}
+                <div class="sender-avatar-mini-ph">{{ msg.sender.username|first|upper }}</div>
+              {% endif %}
+              <span class="sender-name">{{ msg.sender.username }}</span>
+            </div>
+          {% endif %}
+          <div class="bubble">
+            {% if msg.file %}
+              {% if msg.file_type == 'image' %}
+                <img src="{{ msg.file.url }}" class="msg-image" onclick="openImage('{{ msg.file.url }}')" alt="">
+              {% elif msg.file_type == 'video' %}
+                <video controls style="max-width:240px; border-radius:8px;"><source src="{{ msg.file.url }}"></video>
+              {% else %}
+                <a href="{{ msg.file.url }}" target="_blank" class="msg-file-link"><i class="fas fa-file"></i> {{ msg.file_name }}</a>
+              {% endif %}
+            {% else %}
+              {{ msg.message_content }}
+            {% endif %}
+          </div>
+          <div class="bubble-meta">{{ msg.timestamp|date:"g:i A" }}</div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <!-- Members Sidebar -->
+    <div class="members-panel" id="members-panel">
+      <div class="members-panel-header">
+        <span>Members ({{ members.count }})</span>
+        <button onclick="toggleMembers()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;"><i class="fas fa-times"></i></button>
+      </div>
+      {% for member in members %}
+      <div class="member-row">
+        {% if member.avatar %}
+          <img src="{{ member.avatar.url }}" class="m-avatar" alt="">
+        {% else %}
+          <div class="m-avatar-ph">{{ member.username|first|upper }}</div>
+        {% endif %}
+        <span class="m-name">{{ member.username }}</span>
+        {% if member == group.created_by %}<span class="m-admin">Admin</span>{% endif %}
+      </div>
+      {% endfor %}
+
+      {% if is_admin %}
+      <form method="post" action="{% url 'chat:add_member' group.id %}" class="add-member-form">
+        {% csrf_token %}
+        <input type="text" name="username" placeholder="Add username…">
+        <button type="submit" class="add-member-btn"><i class="fas fa-plus"></i></button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Input Bar -->
+  <div class="input-bar">
+    <input type="file" id="file-input">
+    <button id="attach-btn" type="button"><i class="fas fa-paperclip"></i></button>
+    <textarea id="message-input" placeholder="Message {{ group.name }}…" rows="1"></textarea>
+    <button id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
+  </div>
+
+  <!-- File preview -->
+  <div id="file-preview-bar" style="display:none; background:var(--bg-card); border-top:1px solid var(--border); padding:10px 16px; align-items:center; gap:10px;">
+    <i class="fas fa-file" style="color:var(--accent);"></i>
+    <span id="file-preview-name" style="font-size:0.85rem; flex:1;"></span>
+    <button onclick="cancelFile()" style="background:none;border:none;color:var(--danger);cursor:pointer;"><i class="fas fa-times"></i> Cancel</button>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <img id="lightbox-img" src="" alt="">
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ME = "{{ request.user.username }}";
+const GROUP_ID = "{{ group.id }}";
+const CSRF = "{{ csrf_token }}";
+const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const WS_URL = `${protocol}://${window.location.host}/ws/group/${GROUP_ID}/`;
+
+const area = document.getElementById('messages-area');
+const input = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const statusEl = document.getElementById('conn-status');
+let emptyHint = document.getElementById('empty-hint');
+const fileInput = document.getElementById('file-input');
+const filePreviewBar = document.getElementById('file-preview-bar');
+const filePreviewName = document.getElementById('file-preview-name');
+let selectedFile = null;
+let socket;
+
+function scrollBottom() { area.scrollTop = area.scrollHeight; }
+function openImage(url) { document.getElementById('lightbox-img').src = url; document.getElementById('lightbox').classList.add('open'); }
+function toggleMembers() { document.getElementById('members-panel').classList.toggle('open'); }
+
+function setStatus(text, connected) {
+  statusEl.textContent = text;
+  statusEl.style.color = connected ? 'var(--success)' : 'var(--warning)';
+  sendBtn.disabled = false;
+}
+
+function buildBubble(message, sender, senderAvatar, timestamp, isNew) {
+  const isMe = sender === ME;
+  const row = document.createElement('div');
+  row.className = `bubble-row ${isMe ? 'me' : 'them'}${isNew ? ' new' : ''}`;
+
+  if (!isMe) {
+    const info = document.createElement('div');
+    info.className = 'sender-info';
+    if (senderAvatar) {
+      info.innerHTML = `<img src="${senderAvatar}" class="sender-avatar-mini" alt=""><span class="sender-name">${sender}</span>`;
+    } else {
+      info.innerHTML = `<div class="sender-avatar-mini-ph">${sender[0].toUpperCase()}</div><span class="sender-name">${sender}</span>`;
+    }
+    row.appendChild(info);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = message;
+  row.appendChild(bubble);
+
+  const meta = document.createElement('div');
+  meta.className = 'bubble-meta';
+  meta.textContent = timestamp;
+  row.appendChild(meta);
+  return row;
+}
+
+function buildFileBubble(data, isNew) {
+  const isMe = data.sender === ME;
+  const row = document.createElement('div');
+  row.className = `bubble-row ${isMe ? 'me' : 'them'}${isNew ? ' new' : ''}`;
+
+  // FIX: Show proper avatar for "them" side (was always showing placeholder before)
+  if (!isMe) {
+    const info = document.createElement('div');
+    info.className = 'sender-info';
+    if (data.sender_avatar) {
+      info.innerHTML = `<img src="${data.sender_avatar}" class="sender-avatar-mini" alt=""><span class="sender-name">${data.sender}</span>`;
+    } else {
+      info.innerHTML = `<div class="sender-avatar-mini-ph">${data.sender[0].toUpperCase()}</div><span class="sender-name">${data.sender}</span>`;
+    }
+    row.appendChild(info);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  const ft = data.file_type || 'document';
+
+  // FIX: Handle all file types (was only handling image and generic link before)
+  if (ft === 'image') {
+    const img = document.createElement('img');
+    img.src = data.file_url; img.className = 'msg-image';
+    img.onclick = () => openImage(data.file_url);
+    bubble.appendChild(img);
+  } else if (ft === 'video') {
+    bubble.innerHTML = `<video controls class="msg-video"><source src="${data.file_url}"></video>`;
+  } else if (ft === 'voice') {
+    bubble.innerHTML = `<div style="display:flex;align-items:center;gap:10px;min-width:180px;">
+      <button onclick="toggleVoice(this,'${data.file_url}')" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:0.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-play"></i></button>
+      <div style="flex:1;"><div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;"><div class="vp" style="height:100%;background:#fff;border-radius:2px;width:0%;transition:width 0.1s;"></div></div>
+      <div class="vd" style="font-size:0.7rem;margin-top:3px;opacity:0.7;">🎤 Voice</div></div></div>`;
+  } else if (ft === 'audio') {
+    bubble.innerHTML = `<audio controls style="width:200px;display:block;"><source src="${data.file_url}"></audio>`;
+  } else {
+    const iconMap = {pdf:'fa-file-pdf', archive:'fa-file-zipper', document:'fa-file-lines'};
+    const icon = iconMap[ft] || 'fa-file';
+    bubble.innerHTML = `<a href="${data.file_url}" target="_blank" class="msg-file-link"><i class="fas ${icon}"></i><div><div style="font-size:0.85rem;">${data.file_name}</div>${data.file_size ? `<div style="font-size:0.72rem;opacity:0.7;">${data.file_size}</div>` : ''}</div></a>`;
+  }
+
+  row.appendChild(bubble);
+  const meta = document.createElement('div');
+  meta.className = 'bubble-meta';
+  meta.textContent = data.timestamp;
+  row.appendChild(meta);
+  return row;
+}
+
+// Voice playback for group room
+const groupVoiceAudios = {};
+function toggleVoice(btn, url) {
+  if (!groupVoiceAudios[url]) {
+    groupVoiceAudios[url] = new Audio(url);
+    const bub = btn.closest('.bubble');
+    const vp = bub && bub.querySelector('.vp');
+    const vd = bub && bub.querySelector('.vd');
+    const a = groupVoiceAudios[url];
+    a.addEventListener('timeupdate', () => {
+      const p = a.duration ? (a.currentTime / a.duration * 100) : 0;
+      if (vp) vp.style.width = p + '%';
+      const s = Math.floor(a.currentTime), t = Math.floor(a.duration || 0);
+      if (vd) vd.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} / ${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+    });
+    a.addEventListener('ended', () => { btn.innerHTML = '<i class="fas fa-play"></i>'; if (vp) vp.style.width = '0%'; });
+  }
+  const a = groupVoiceAudios[url];
+  if (a.paused) { a.play(); btn.innerHTML = '<i class="fas fa-pause"></i>'; }
+  else { a.pause(); btn.innerHTML = '<i class="fas fa-play"></i>'; }
+}
+
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0];
+  if (!selectedFile) return;
+  filePreviewBar.style.display = 'flex';
+  filePreviewName.textContent = selectedFile.name;
+});
+document.getElementById('attach-btn').addEventListener('click', () => fileInput.click());
+
+function cancelFile() {
+  selectedFile = null; fileInput.value = '';
+  filePreviewBar.style.display = 'none';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024**2) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1024**3) return (bytes/(1024**2)).toFixed(1) + ' MB';
+  return (bytes/(1024**3)).toFixed(2) + ' GB';
+}
+
+function uploadGroupFile(file) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        sendBtn.innerHTML = `<span style="font-size:0.65rem;font-weight:700;">${pct}%</span>`;
+      }
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else reject('Upload failed');
+    });
+    xhr.addEventListener('error', () => reject('Network error'));
+    xhr.open('POST', `/chat/group/${GROUP_ID}/upload/`);
+    xhr.setRequestHeader('X-CSRFToken', CSRF);
+    xhr.send(formData);
+  });
+}
+
+async function sendMessage() {
+  if (selectedFile) {
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    try {
+      const data = await uploadGroupFile(selectedFile);
+      if (data) {
+        if (emptyHint) { emptyHint.remove(); emptyHint = null; }
+        area.appendChild(buildFileBubble(data, true));
+        scrollBottom();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          // FIX: Include timestamp and sender_avatar so receiver side renders correctly
+          socket.send(JSON.stringify({
+            file_message: true,
+            file_url: data.file_url,
+            file_name: data.file_name,
+            file_type: data.file_type,
+            file_size: data.file_size || '',
+            timestamp: data.timestamp,
+            message_id: data.message_id,
+            sender_avatar: data.sender_avatar || '',
+          }));
+        }
+      }
+    } catch(err) { alert('Upload failed: ' + err); }
+    cancelFile(); input.value = '';
+    sendBtn.disabled = false; sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    return;
+  }
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+
+  // FIX: Render own bubble immediately (optimistic UI) — don't wait for server echo
+  if (emptyHint) { emptyHint.remove(); emptyHint = null; }
+  const now = new Date().toLocaleTimeString('en-PK', {hour:'numeric', minute:'2-digit', hour12:true});
+  const MY_AVATAR = "{% if request.user.avatar %}{{ request.user.avatar.url }}{% endif %}";
+  area.appendChild(buildBubble(text, ME, MY_AVATAR, now, true));
+  scrollBottom();
+
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ message: text }));
+  }
+}
+
+function connect() {
+  setStatus('Connecting…', false);
+  socket = new WebSocket(WS_URL);
+  socket.onopen = () => { setStatus('Connected', true); scrollBottom(); };
+  socket.onclose = () => { setStatus('Reconnecting…', false); setTimeout(connect, 3000); };
+  socket.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+
+    // FIX: Sender already rendered their own bubble optimistically — only the receiver
+    // should render via WebSocket to prevent duplicate bubbles.
+    if (data.sender === ME) return;
+
+    if (emptyHint) { emptyHint.remove(); emptyHint = null; }
+
+    const previewMap = {image:'📷 Image',video:'🎬 Video',voice:'🎤 Voice message',audio:'🎵 Audio',pdf:'📄 PDF',archive:'🗜 Archive'};
+
+    if (data.file_message) {
+      area.appendChild(buildFileBubble(data, true));
+      if (window.ChatAppNotify) {
+        const prev = previewMap[data.file_type] || '📎 ' + data.file_name;
+        window.ChatAppNotify.addNotification(data.sender, prev, window.location.href, data.sender_avatar || '');
+      }
+    } else {
+      area.appendChild(buildBubble(data.message, data.sender, data.sender_avatar, data.timestamp, true));
+      if (window.ChatAppNotify) {
+        window.ChatAppNotify.addNotification(data.sender, data.message, window.location.href, data.sender_avatar || '');
+      }
+    }
+    scrollBottom();
+  };
+}
+
+sendBtn.addEventListener('click', sendMessage);
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+});
+
+scrollBottom();
+connect();
+</script>
+{% endblock %}

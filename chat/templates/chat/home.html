@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+{% block title %}Messages — ChatApp{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ══ LAYOUT ══════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+
+.home-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 16px;
+  min-height: calc(100vh - 60px);
+  align-items: start;
+}
+
+/* ══ PANELS ══════════════════════════════════════════════════════ */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-hdr {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.panel-title i { color: var(--accent); }
+
+/* ══ TABS ════════════════════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 11px 8px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ══ CONVERSATION / USER ITEMS ═══════════════════════════════════ */
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  position: relative;
+}
+
+.conv-item:last-child { border-bottom: none; }
+.conv-item:hover { background: var(--bg-secondary); text-decoration: none; }
+.conv-item.new-msg { background: var(--accent-light); }
+
+.av {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.av-ph {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem; color: var(--accent);
+  flex-shrink: 0;
+}
+
+.av-group {
+  background: rgba(62,207,142,0.15);
+  color: var(--success);
+}
+
+.conv-info { flex: 1; min-width: 0; }
+
+.conv-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-preview {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-meta { text-align: right; flex-shrink: 0; }
+
+.conv-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.badge {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.badge-green { background: var(--success); }
+
+/* ══ PEOPLE SIDEBAR ══════════════════════════════════════════════ */
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.user-item:last-child { border-bottom: none; }
+.user-item:hover { background: var(--bg-secondary); text-decoration: none; }
+
+.av-sm {
+  width: 34px; height: 34px;
+  border-radius: 50%; object-fit: cover;
+}
+
+.av-sm-ph {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 0.78rem; color: var(--text-secondary);
+}
+
+.user-name { font-size: 0.83rem; font-weight: 500; }
+
+/* ══ EMPTY STATE ═════════════════════════════════════════════════ */
+.empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty i { font-size: 1.8rem; display: block; margin-bottom: 10px; }
+.empty p { font-size: 0.82rem; line-height: 1.5; }
+
+/* ══ LINKS ═══════════════════════════════════════════════════════ */
+.link-sm {
+  font-size: 0.78rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.link-sm:hover { text-decoration: underline; }
+
+.link-green {
+  font-size: 0.78rem;
+  color: var(--success);
+  text-decoration: none;
+  display: flex; align-items: center; gap: 4px;
+}
+.link-green:hover { text-decoration: underline; }
+
+/* ══ REAL-TIME INDICATOR ═════════════════════════════════════════ */
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+  margin-left: 4px;
+  transition: background 0.3s;
+}
+.live-dot.on { background: var(--success); animation: livepulse 2s infinite; }
+@keyframes livepulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* ══ MOBILE ══════════════════════════════════════════════════════ */
+@media (max-width: 680px) {
+  .home-wrap {
+    grid-template-columns: 1fr;
+    padding: 0;
+    gap: 0;
+    min-height: calc(100vh - 60px);
+  }
+
+  .panel {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .sidebar { order: 2; border-top: 6px solid var(--bg-primary); }
+
+  .av, .av-ph { width: 40px; height: 40px; }
+  .conv-item { padding: 11px 14px; }
+  .conv-name { font-size: 0.85rem; }
+  .conv-preview { font-size: 0.74rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="home-wrap">
+
+  <!-- ── Main Panel (DMs + Groups) ── -->
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('dms',this)">
+        <i class="fas fa-comment"></i> Messages
+      </div>
+      <div class="tab" onclick="switchTab('groups',this)">
+        <i class="fas fa-users"></i> Groups
+      </div>
+    </div>
+
+    <!-- DMs -->
+    <div class="tab-pane active" id="tab-dms">
+      <div class="panel-hdr">
+        <span class="panel-title" style="font-size:0.78rem;color:var(--text-muted);">
+          Recent <span class="live-dot" id="live-dot" title="Live updates"></span>
+        </span>
+        <a href="{% url 'chat:search' %}" class="link-sm"><i class="fas fa-search"></i> Search</a>
+      </div>
+
+      <div id="conv-list">
+        {% if conversations %}
+          {% for conv in conversations %}
+          <a href="{% url 'chat:room' conv.user.username %}" class="conv-item" id="conv-{{ conv.user.username }}">
+            {% if conv.user.avatar %}
+              <img src="{{ conv.user.avatar.url }}" class="av" alt="">
+            {% else %}
+              <div class="av-ph">{{ conv.user.username|first|upper }}</div>
+            {% endif %}
+            <div class="conv-info">
+              <div class="conv-name">{{ conv.user.username }}</div>
+              <div class="conv-preview" id="prev-{{ conv.user.username }}">
+                {% if conv.last_message %}
+                  {% if conv.last_message.sender == request.user %}You: {% endif %}
+                  {% if conv.last_message.file %}📎 {{ conv.last_message.file_name|truncatechars:28 }}{% else %}{{ conv.last_message.message_content|truncatechars:38 }}{% endif %}
+                {% endif %}
+              </div>
+            </div>
+            <div class="conv-meta">
+              <div class="conv-time" id="time-{{ conv.user.username }}">
+                {% if conv.last_message %}{{ conv.last_message.timestamp|date:"g:i A" }}{% endif %}
+              </div>
+              <span class="badge" id="badge-{{ conv.user.username }}" {% if not conv.unread_count %}style="display:none"{% endif %}>
+                {{ conv.unread_count }}
+              </span>
+            </div>
+          </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty" id="dms-empty">
+            <i class="fas fa-comment-slash"></i>
+            <p>No conversations yet.<br>Search for someone to start chatting!</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Groups -->
+    <div class="tab-pane" id="tab-groups">
+      <div class="panel-hdr">
+        <span class="panel-title" style="font-size:0.78rem;color:var(--text-muted);">Your groups</span>
+        <a href="{% url 'chat:create_group' %}" class="link-green"><i class="fas fa-plus"></i> New Group</a>
+      </div>
+
+      {% if user_groups %}
+        {% for group in user_groups %}
+        <a href="{% url 'chat:group_room' group.id %}" class="conv-item" id="group-{{ group.id }}">
+          {% if group.icon %}
+            <img src="{{ group.icon.url }}" class="av" alt="">
+          {% else %}
+            <div class="av-ph av-group"><i class="fas fa-users" style="font-size:0.85rem;"></i></div>
+          {% endif %}
+          <div class="conv-info">
+            <div class="conv-name">{{ group.name }}</div>
+            <div class="conv-preview" id="gprev-{{ group.id }}">{{ group.members.count }} members</div>
+          </div>
+          <div class="conv-meta">
+            <div class="conv-time" id="gtime-{{ group.id }}">{{ group.created_at|date:"M d" }}</div>
+            {% if group.created_by == request.user %}
+              <span class="badge badge-green" style="font-size:0.62rem;">Admin</span>
+            {% else %}
+              <span class="badge" id="gbadge-{{ group.id }}" style="display:none;"></span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty">
+          <i class="fas fa-users-slash"></i>
+          <p>No groups yet.<br><a href="{% url 'chat:create_group' %}">Create your first group</a></p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── People Sidebar ── -->
+  <div class="panel sidebar">
+    <div class="panel-hdr">
+      <span class="panel-title"><i class="fas fa-user-friends"></i> People</span>
+    </div>
+    {% if all_users %}
+      {% for u in all_users|slice:":15" %}
+      <a href="{% url 'chat:room' u.username %}" class="user-item">
+        {% if u.avatar %}
+          <img src="{{ u.avatar.url }}" class="av-sm" alt="">
+        {% else %}
+          <div class="av-sm-ph">{{ u.username|first|upper }}</div>
+        {% endif %}
+        <span class="user-name">{{ u.username }}</span>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty" style="padding:24px 16px;">
+        <i class="fas fa-user-slash" style="font-size:1.3rem;"></i>
+        <p>No other users yet</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(id, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+// ── Real-time notification WebSocket ─────────────────────────────────────────
+const WS_PROTO  = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const NOTIF_URL = `${WS_PROTO}://${window.location.host}/ws/notifications/`;
+const ME        = "{{ request.user.username }}";
+const liveDot   = document.getElementById('live-dot');
+let notifSocket;
+
+function connectNotif() {
+  notifSocket = new WebSocket(NOTIF_URL);
+
+  notifSocket.onopen = () => {
+    if (liveDot) { liveDot.classList.add('on'); liveDot.title = 'Live updates active'; }
+  };
+
+  notifSocket.onclose = () => {
+    if (liveDot) { liveDot.classList.remove('on'); liveDot.title = 'Reconnecting…'; }
+    setTimeout(connectNotif, 3000);
+  };
+
+  notifSocket.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type !== 'new_message') return;
+    handleNewMessage(d);
+  };
+}
+
+function handleNewMessage(d) {
+  const now = d.timestamp || new Date().toLocaleTimeString('en-PK', {hour:'numeric',minute:'2-digit',hour12:true});
+
+  if (d.is_group) {
+    // ── Group message update ──
+    // Extract group ID from URL like /chat/group/3/
+    const match = d.chat_url.match(/\/group\/(\d+)\//);
+    if (!match) return;
+    const gid = match[1];
+
+    const prevEl  = document.getElementById(`gprev-${gid}`);
+    const timeEl  = document.getElementById(`gtime-${gid}`);
+    const badgeEl = document.getElementById(`gbadge-${gid}`);
+    const row     = document.getElementById(`group-${gid}`);
+
+    if (prevEl) prevEl.textContent = `${d.sender}: ${d.preview}`;
+    if (timeEl) timeEl.textContent = now;
+    if (badgeEl) {
+      const cur = parseInt(badgeEl.textContent) || 0;
+      badgeEl.textContent = cur + 1;
+      badgeEl.style.display = 'inline-block';
+    }
+    if (row) { bumpToTop(row, document.getElementById('tab-groups')); flashItem(row); }
+
+  } else {
+    // ── DM update ──
+    const sender  = d.sender;
+    const prevEl  = document.getElementById(`prev-${sender}`);
+    const timeEl  = document.getElementById(`time-${sender}`);
+    const badgeEl = document.getElementById(`badge-${sender}`);
+    let   row     = document.getElementById(`conv-${sender}`);
+    const convList = document.getElementById('conv-list');
+
+    if (row) {
+      // existing conversation — update preview
+      if (prevEl) prevEl.textContent = d.preview;
+      if (timeEl) timeEl.textContent = now;
+      if (badgeEl) {
+        const cur = parseInt(badgeEl.textContent) || 0;
+        badgeEl.textContent = cur + 1;
+        badgeEl.style.display = 'inline-block';
+      }
+      bumpToTop(row, convList);
+      flashItem(row);
+    } else {
+      // brand new conversation — create the row
+      const emptyEl = document.getElementById('dms-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const newRow = document.createElement('a');
+      newRow.href = d.chat_url;
+      newRow.className = 'conv-item new-msg';
+      newRow.id = `conv-${sender}`;
+      newRow.innerHTML = `
+        ${d.sender_avatar
+          ? `<img src="${d.sender_avatar}" class="av" alt="">`
+          : `<div class="av-ph">${sender[0].toUpperCase()}</div>`}
+        <div class="conv-info">
+          <div class="conv-name">${sender}</div>
+          <div class="conv-preview" id="prev-${sender}">${d.preview}</div>
+        </div>
+        <div class="conv-meta">
+          <div class="conv-time" id="time-${sender}">${now}</div>
+          <span class="badge" id="badge-${sender}">1</span>
+        </div>`;
+      convList.insertBefore(newRow, convList.firstChild);
+      setTimeout(() => newRow.classList.remove('new-msg'), 2000);
+    }
+  }
+
+  // Show bell notification (won't popup since we're on home page — just adds to dropdown)
+  if (window.ChatAppNotify) {
+    window.ChatAppNotify.addNotification(d.sender, d.preview, d.chat_url, d.sender_avatar || '');
+  }
+}
+
+// Move a row to the top of its parent
+function bumpToTop(row, parent) {
+  if (!parent || !row) return;
+  parent.insertBefore(row, parent.firstChild);
+}
+
+// Flash highlight
+function flashItem(row) {
+  row.classList.add('new-msg');
+  setTimeout(() => row.classList.remove('new-msg'), 2500);
+}
+
+// ── Start ──────────────────────────────────────────────────────────────────────
+connectNotif();
+</script>
+{% endblock %}

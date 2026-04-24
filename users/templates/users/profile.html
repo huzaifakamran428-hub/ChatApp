@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Profile — ChatApp{% endblock %}
+{% block extra_css %}
+<style>
+.profile-wrapper { max-width: 560px; margin: 40px auto; padding: 0 16px; }
+.profile-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 36px; box-shadow: var(--shadow); }
+.avatar-section { text-align: center; margin-bottom: 28px; }
+.avatar-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
+.avatar-placeholder { width: 100px; height: 100px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 700; color: var(--accent); margin: 0 auto; border: 3px solid var(--accent); }
+.avatar-label { display: block; margin-top: 10px; font-size: 0.82rem; color: var(--accent); cursor: pointer; }
+.avatar-label:hover { text-decoration: underline; }
+.profile-name { font-size: 1.4rem; font-weight: 700; text-align: center; }
+.profile-email { text-align: center; color: var(--text-secondary); font-size: 0.88rem; margin-top: 4px; }
+.profile-stats { display: flex; gap: 16px; margin: 20px 0; padding: 16px; background: var(--bg-secondary); border-radius: var(--radius-sm); }
+.stat { flex: 1; text-align: center; }
+.stat-num { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="profile-wrapper">
+  <div class="profile-card">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="avatar-section">
+        {% if user.avatar %}
+          <img src="{{ user.avatar.url }}" class="avatar-img" id="avatar-preview" alt="DP">
+        {% else %}
+          <div class="avatar-placeholder" id="avatar-placeholder">{{ user.username|first|upper }}</div>
+          <img src="" class="avatar-img" id="avatar-preview" style="display:none;" alt="DP">
+        {% endif %}
+        <label for="{{ form.avatar.id_for_label }}" class="avatar-label">
+          <i class="fas fa-camera"></i> Change Profile Photo
+        </label>
+        <div style="display:none;">{{ form.avatar }}</div>
+      </div>
+
+      <div class="profile-name">{{ user.username }}</div>
+      <div class="profile-email"><i class="fas fa-envelope"></i> {{ user.email }}</div>
+
+      <div class="profile-stats">
+        <div class="stat">
+          <div class="stat-num">{{ user.sent_messages.count }}</div>
+          <div class="stat-label">Sent</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ user.received_messages.count }}</div>
+          <div class="stat-label">Received</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ user.group_memberships.count }}</div>
+          <div class="stat-label">Groups</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-group">
+        <label class="form-label">Bio</label>
+        {{ form.bio }}
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full mt-2">
+        <i class="fas fa-save"></i> Save Profile
+      </button>
+    </form>
+
+    <a href="{% url 'chat:home' %}" class="btn btn-outline btn-full mt-2" style="text-decoration:none;">
+      <i class="fas fa-arrow-left"></i> Back to Chats
+    </a>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// Preview avatar before upload
+document.getElementById('{{ form.avatar.id_for_label }}').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('avatar-preview');
+    const placeholder = document.getElementById('avatar-placeholder');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+</script>
+{% endblock %}
