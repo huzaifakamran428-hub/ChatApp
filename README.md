@@ -1,8 +1,8 @@
 # ChatApp — Web-Based Real-Time Chat Application
 
 > **SRS Project** | Software Construction & Development  
-> Student: Huzaifa Kamran | F2023065090 | Section W5  
-> Stack: Python · Django 4.x · Django Channels · WebSockets · SQLite
+> Student: Huzaifa Kamran
+> Stack: Python · Django 4.x · Django Channels · WebSockets · MySQL
 
 ---
 
